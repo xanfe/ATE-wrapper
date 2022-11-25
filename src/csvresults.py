@@ -1,27 +1,37 @@
-import pandas as pd
-from datetime import datetime
-import pcf
-from dataclasses import dataclass
 from __future__ import annotations
-import csv
+import pandas as pd
+from pandas import DataFrame
 
-DATE_C_NAME = '[TIME] TIMESTAMP / RECORD ID' #date_column_name
+from dataclasses import dataclass
+
+from typing import *
+
+from pcf import Pcf
+
+DATE_COLUMN_NAME = '[TIME] TIMESTAMP / RECORD ID'
 
 
 
-class CsvResults():
+class MyCsv:
 
-    def __init__(self, csv_path) -> None:
+    def __init__(self, csv_path, pcf_config:Pcf) -> None:
         self.results_csv_path = csv_path
-        self.df = None
+        self.pcf:Pcf = pcf_config
+        self.df:DataFrame = None
         self._update_df()
     
+    @property
+    def records(self) -> list[Record]:
+        return [self.Record(self, self.df.iloc[idx]) for idx in self.df.index]
+
+
+
     def _to_datetime(self):
-        self.df[DATE_C_NAME] = pd.to_datetime(self.df[DATE_C_NAME], format='%Y-%m-%d_%H:%M:%S.%f')
+        self.df[DATE_COLUMN_NAME] = pd.to_datetime(self.df[DATE_COLUMN_NAME], format='%Y-%m-%d_%H:%M:%S.%f')
     
     def get_last_record(self) -> Record:
         self._update_df()
-        return self.Record(self.df.iloc[self.df[DATE_C_NAME].argmax()])
+        return self.Record(self, self.df.iloc[self.df[DATE_COLUMN_NAME].argmax()])
     
     def _update_df(self):
         self.df = pd.read_csv(self.results_csv_path, sep=',')
@@ -29,35 +39,66 @@ class CsvResults():
     
     class Record:
 
-        def __init__(self, data:pd.Series) -> None:
+        def __init__(self, csv, data:pd.Series) -> None:
+            self.results:MyCsv = csv
             self.data:pd.Series = data
-            self.date = data.get(DATE_C_NAME)
+            self.date = data.get(DATE_COLUMN_NAME)
+
+        @property
+        def tests(self) -> list[Test]:
+            return [self.Test(self, test_name, self.data.get(test_name)) for test_name in self.data.keys()]
         
-        def _get_failed_tests(self):
-            return [test for test in self.data.keys() if "FAIL" in str(self.data.get(test))]
+        def __getitem__(self, test_name:str) -> Test:
+            for test in self.tests:
+                if test_name == test.name:
+                    return test
+            raise KeyError(test.name)
+        
+        def __repr__(self) -> str:
+            return repr(self.data)
+        
+        def _get_failed_tests(self) -> list[Test]:
+            return [self.Test(self, test_name, self.data.get(test_name)) for test_name in self.data.keys() if "FAIL" in str(self.data.get(test_name))]
 
         def get_failstring(self):
-            pass
+            for test in self._get_failed_tests():
+                print("limits for failed test: ", test.limits)
         
-        def get_test(self):
-            pass
+        
+
 
         class Test:
 
-            def __init__(self, name) -> None:
-                self.name
-                self.status
-                self._limits:self.Limits = None
+            def __init__(self, outer, name, data) -> None:
+                self.name = name
+                self.data = data
+                if not isinstance(outer, MyCsv.Record):
+                    raise TypeError(f"exp type: {MyCsv.Record}, recv type {type(outer)}")
+                self._outer = outer
 
+            
+            @property
+            def record(self) -> MyCsv.Record:
+                return self._outer
 
-            def get_limits(self):
+            @property
+            def t_type(self):
+                pass
 
-                return self._limits    
+            
+            @property
+            def limits(self) -> Limits:
+                return self.record.results.pcf["TEST RESULTS SPECIFICATIONS"][self.name]
+                return self._limits 
+                   
 
             @dataclass
             class Limits:
                 low: float
                 high:float
+            
+            def __repr__(self) -> str:
+                return f'{self.name} : {self.data}'
     
     
     
