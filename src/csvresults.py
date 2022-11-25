@@ -1,6 +1,7 @@
 from __future__ import annotations
 import pandas as pd
 from pandas import DataFrame
+import re
 
 from dataclasses import dataclass
 
@@ -43,6 +44,14 @@ class MyCsv:
             self.results:MyCsv = csv
             self.data:pd.Series = data
             self.date = data.get(DATE_COLUMN_NAME)
+        
+        @property
+        def status(self) -> bool:
+            try:
+                return True if self.data["[RESULT] TEST P/F STATUS"] == 'PASS' else False
+            finally:
+                print("dropped")
+                self.data = self.data.drop("[RESULT] TEST P/F STATUS")
 
         @property
         def tests(self) -> list[Test]:
@@ -62,20 +71,28 @@ class MyCsv:
 
         def get_failstring(self):
             for test in self._get_failed_tests():
-                print("limits for failed test: ", test.limits)
+                print("limits for failed test: ", test.name)
         
         
 
 
         class Test:
 
-            def __init__(self, outer, name, data) -> None:
-                self.name = name
+            def __init__(self, outer, name:str, data) -> None:
+                self._name = name
                 self.data = data
                 if not isinstance(outer, MyCsv.Record):
                     raise TypeError(f"exp type: {MyCsv.Record}, recv type {type(outer)}")
                 self._outer = outer
+            
+            @property
+            def status(self) -> bool:
+                pass
 
+            
+            @property
+            def name(self) -> str:
+                return re.split(r' LOW \[| HIGH \[| \[', self._name)[0]
             
             @property
             def record(self) -> MyCsv.Record:
@@ -88,9 +105,8 @@ class MyCsv:
             
             @property
             def limits(self) -> Limits:
-                return self.record.results.pcf["TEST RESULTS SPECIFICATIONS"][self.name]
-                return self._limits 
-                   
+                return self.record.results.pcf["TEST RESULTS SPECIFICATIONS"].get_related_rows(self.name)
+
 
             @dataclass
             class Limits:
