@@ -1,18 +1,7 @@
+from __future__ import annotations
 from io import StringIO
 import pandas as pd
 import re
-
-
-
-class Section():
-    def __init__(self, name, str_data) -> None:
-        self.name:str = name
-        self.df = pd.read_csv(StringIO(str_data), sep=',')
-        self.column_names = self.df.columns
-        self.records = self.df.to_records()
-    
-    def __repr__(self) -> str:
-        return str(self.df.head())
 
 
 class Pcf:
@@ -35,4 +24,25 @@ class Pcf:
     def _set_sections(self):
         for raw_section in self._get_raw_sections():
             name_w_data = raw_section.split('\n', 1)
-            self.sections.append(Section(name_w_data[0], name_w_data[1]))
+            self.sections.append(self.Section(name_w_data[0], name_w_data[1]))
+    
+    class Section():
+        def __init__(self, name, str_data) -> None:
+            self.name:str = name
+            self.df = pd.read_csv(StringIO(str_data), sep=',')
+            self.column_names = self.df.columns
+            self.records = self.df.to_records()
+        
+        def __repr__(self) -> str:
+            return str(self.df.head())
+        
+        
+        def get_rows(self, step_name):
+            return self.df.loc[self.df['Step ID'].isin([step_name, step_name+ ' LOW', step_name + ' HIGH'])]
+
+
+        
+        class Row():
+            def __init__(self) -> None:
+                pass
+
