@@ -3,17 +3,17 @@ from __future__ import annotations
 import pandas as pd
 from pandas import DataFrame
 import re
+import numpy as np
 
-from dataclasses import dataclass
 from pcf import Pcf
 
 DATE_COLUMN_NAME = '[TIME] TIMESTAMP / RECORD ID'
 
 class Csv:
 
-    def __init__(self, csv_path, pcf_config:Pcf) -> None:
-        self.results_csv_path = csv_path
-        self.pcf:Pcf = pcf_config
+    def __init__(self, csv_path:str, pcf_config:Pcf) -> None:
+        self.csv_path = csv_path
+        self.pcf = pcf_config
         self.df:DataFrame = None
         self._update_df()
     
@@ -29,14 +29,14 @@ class Csv:
         return self.Record(self, self.df.iloc[self.df[DATE_COLUMN_NAME].argmax()])
     
     def _update_df(self):
-        self.df = pd.read_csv(self.results_csv_path, sep=',')
+        self.df = pd.read_csv(self.csv_path, sep=',')
         self._to_datetime()
     
     class Record:
 
-        def __init__(self, csv, data:pd.Series) -> None:
-            self.results:Csv = csv
-            self.data:pd.Series = data
+        def __init__(self, csv:Csv, data:pd.Series) -> None:
+            self.csv = csv
+            self.data = data
             self.date = data.get(DATE_COLUMN_NAME)
         
         @property
@@ -59,16 +59,16 @@ class Csv:
         def __repr__(self) -> str:
             return repr(self.data)
         
-        def _get_failed_tests(self) -> list[Test]:
+        def __get_failed_tests(self) -> list[Test]:
             return [test for test in self.tests if "FAIL" in str(test.data)]
 
         def get_failstring(self):
-            failstring = ""
-            for test in self._get_failed_tests():
+            failstring:str
+            for test in self.__get_failed_tests():
 
                 failstring += '|ftestres=0,{},{},{},{},{},{},{}\n'. \
                     format(
-                        test.fullname,
+                        test.name,
                         test.meas,
                         test.limits.high,
                         test.limits.low,
@@ -82,36 +82,47 @@ class Csv:
         class Test:
 
             def __init__(self, outer:Csv.Record, name:str, data) -> None:
-                self._name = name
-                self.data = data
                 if not isinstance(outer, Csv.Record):
                     raise TypeError(f"exp type: {Csv.Record}, recv type {type(outer)}")
+                self._name = name
+                self.data = data
+                self.operator = None
                 self.record = outer
-                self.metadata:DataFrame = self.record.results.pcf["TEST RESULTS SPECIFICATIONS"].get_spec(self.name)
+                self.metadata:DataFrame = self.record.csv.pcf["TEST RESULTS SPECIFICATIONS"].get_spec(self.name)
 
-            @property
-            def fullname(self) -> str:
-                return re.split(r' \[', self._name)[0]
-            
             @property
             def name(self) -> str:
-                return re.split(r' HIGH| LOW', self.fullname)[0]
-
+                if  '[' in self._name:
+                    return re.split(r' \[', self._name)[0]
+                else:
+                    return self._name
+            
             @property
             def status(self) -> bool:
                 return True if 'PASS' in self.data else False
                 
-            
             @property
             def meas(self):
                 if self.type == "DBL":
                     try:
-                        return self.record[f'{self.fullname} [MEAS]'].data
+                        self.operator = '<>'
+                        return self.record[f'{self.name} [MEAS]'].data
                     except KeyError:
+                        if self.nominal in (1.0, 0.0):
+                            self.operator = '=='
                             return int(not self.nominal)
-  
+                        else:
+                            return None
                 elif self.type == "BOOLEAN":
+                    self.operator = '=='
                     return int(self.status)
+                elif self.type == "STRING":
+                    self.operator = '=='
+                    pass #TODO: implement value for string test type
+                    
+                elif self.type == "CORRELATION DBL":
+                    self.operator = '<>'
+                    pass #TODO: implement value for CORRELATION DBL test type
                 
             @property
             def type(self) -> str:
@@ -128,43 +139,30 @@ class Csv:
             @property
             def limits(self) -> Limits:
                 return self.Limits(self)
-            
-            @property
-            def operator(self) -> str:
-                return '<>'
 
             def __repr__(self) -> str:
-                return f'{self.fullname} : {self.data}'
+                return f'{self.name} : {self.data}'
             
             def _get_attr(self, attr_name):
                 if attr_name in self.metadata:
-                    print(list(self.metadata[attr_name].values))
                     return self.metadata[attr_name].values[0]
                 else:
                     raise Exception(f"the metadata for this test does not containt '{attr_name}'")
-
             
             class Limits:
 
                 def __init__(self, test:Csv.Record.Test) -> None:
-
                     self.low: float = None
                     self.high:float = None
                     self.test = test
                     self.setup()
                 
                 def setup(self):
-
-                    if self.test.type == "DBL" and len(self.test.metadata) > 1:
-      
-                        low_series = self.test.metadata.loc[self.test.metadata['Step ID'].str.contains("LOW")]
-                        if "WATER" in low_series['Step ID'].values[0]:
-                            print(low_series['Step ID'].values[0])
-                        high_series = self.test.metadata.loc[self.test.metadata['Step ID'].str.contains("HIGH")]
-                        self.low =  float(low_series["Nominal"] - low_series["Tolerance"])
-                        self.high = float(high_series["Nominal"] + high_series["Tolerance"])
-
-
+                    if self.test.type == "DBL" and self.test.metadata["Tolerance"].values[0] != np.nan:
+                        if "HIGH" in self.test.name:
+                            self.low =  float(self.test.metadata["Nominal"] - self.test.metadata["Tolerance"])
+                        elif "LOW" in self.test.name:
+                            self.high =  float(self.test.metadata["Nominal"] - self.test.metadata["Tolerance"])
 
                 def __repr__(self) -> str:
                     return f'low: {self.low} high: {self.high}'
