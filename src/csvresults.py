@@ -1,15 +1,15 @@
 from __future__ import annotations
+
 import pandas as pd
 from pandas import DataFrame
 import re
 
 from dataclasses import dataclass
-from typing import *
 from pcf import Pcf
 
 DATE_COLUMN_NAME = '[TIME] TIMESTAMP / RECORD ID'
 
-class MyCsv:
+class Csv:
 
     def __init__(self, csv_path, pcf_config:Pcf) -> None:
         self.results_csv_path = csv_path
@@ -35,7 +35,7 @@ class MyCsv:
     class Record:
 
         def __init__(self, csv, data:pd.Series) -> None:
-            self.results:MyCsv = csv
+            self.results:Csv = csv
             self.data:pd.Series = data
             self.date = data.get(DATE_COLUMN_NAME)
         
@@ -52,47 +52,67 @@ class MyCsv:
         
         def __getitem__(self, test_name:str) -> Test:
             for test in self.tests:
-                if test_name == test.name:
+                if test_name == test._name:
                     return test
-            raise KeyError(test.name)
+            raise KeyError(test_name)
         
         def __repr__(self) -> str:
             return repr(self.data)
         
         def _get_failed_tests(self) -> list[Test]:
-            return [self.Test(self, test_name, self.data.get(test_name)) for test_name in self.data.keys() if "FAIL" in str(self.data.get(test_name))]
+            return [test for test in self.tests if "FAIL" in str(test.data)]
 
         def get_failstring(self):
+            failstring = ""
             for test in self._get_failed_tests():
-                print("test name: ", test.name)
-                print("test type: ", test.type)
-                print("test status: ", test.status)
-                print("test limits: ", test.limits)
-                print("test units: ", test.units)
-        
-        
 
+                failstring += '|ftestres=0,{},{},{},{},{},{},{}\n'. \
+                    format(
+                        test.fullname,
+                        test.meas,
+                        test.limits.high,
+                        test.limits.low,
+                        test.nominal,
+                        test.units,
+                        test.operator
+                        )
 
+            return failstring
+        
         class Test:
 
-            def __init__(self, outer:MyCsv.Record, name:str, data) -> None:
+            def __init__(self, outer:Csv.Record, name:str, data) -> None:
                 self._name = name
                 self.data = data
-                
-                if not isinstance(outer, MyCsv.Record):
-                    raise TypeError(f"exp type: {MyCsv.Record}, recv type {type(outer)}")
+                if not isinstance(outer, Csv.Record):
+                    raise TypeError(f"exp type: {Csv.Record}, recv type {type(outer)}")
                 self.record = outer
-                self.metadata:DataFrame = self.record.results.pcf["TEST RESULTS SPECIFICATIONS"].get_rows(self.name)
-
+                self.metadata:DataFrame = self.record.results.pcf["TEST RESULTS SPECIFICATIONS"].get_spec(self.name)
 
             @property
+            def fullname(self) -> str:
+                return re.split(r' \[', self._name)[0]
+            
+            @property
             def name(self) -> str:
-                return re.split(r' LOW \[| HIGH \[| \[', self._name)[0]
+                return re.split(r' HIGH| LOW', self.fullname)[0]
 
             @property
             def status(self) -> bool:
                 return True if 'PASS' in self.data else False
+                
             
+            @property
+            def meas(self):
+                if self.type == "DBL":
+                    try:
+                        return self.record[f'{self.fullname} [MEAS]'].data
+                    except KeyError:
+                            return int(not self.nominal)
+  
+                elif self.type == "BOOLEAN":
+                    return int(self.status)
+                
             @property
             def type(self) -> str:
                 return self._get_attr("Data Type")
@@ -107,29 +127,44 @@ class MyCsv:
             
             @property
             def limits(self) -> Limits:
-                if self.type == "DBL" and len(self.metadata) > 1:
-                    low_series = self.metadata.loc[self.metadata['Step ID'] == self.name + ' LOW']
-                    high_series = self.metadata.loc[self.metadata['Step ID'] == self.name + ' HIGH']
-                    low_l =  float(low_series["Nominal"] - low_series["Tolerance"])
-                    high_l = float(high_series["Nominal"] + high_series["Tolerance"])
-                    return self.Limits(low_l, high_l)
-
-
+                return self.Limits(self)
             
+            @property
+            def operator(self) -> str:
+                return '<>'
+
             def __repr__(self) -> str:
-                return f'{self.name} : {self.data}'
+                return f'{self.fullname} : {self.data}'
             
             def _get_attr(self, attr_name):
                 if attr_name in self.metadata:
+                    print(list(self.metadata[attr_name].values))
                     return self.metadata[attr_name].values[0]
                 else:
                     raise Exception(f"the metadata for this test does not containt '{attr_name}'")
 
             
-            @dataclass
             class Limits:
-                low: float
-                high:float
+
+                def __init__(self, test:Csv.Record.Test) -> None:
+
+                    self.low: float = None
+                    self.high:float = None
+                    self.test = test
+                    self.setup()
+                
+                def setup(self):
+
+                    if self.test.type == "DBL" and len(self.test.metadata) > 1:
+      
+                        low_series = self.test.metadata.loc[self.test.metadata['Step ID'].str.contains("LOW")]
+                        if "WATER" in low_series['Step ID'].values[0]:
+                            print(low_series['Step ID'].values[0])
+                        high_series = self.test.metadata.loc[self.test.metadata['Step ID'].str.contains("HIGH")]
+                        self.low =  float(low_series["Nominal"] - low_series["Tolerance"])
+                        self.high = float(high_series["Nominal"] + high_series["Tolerance"])
+
+
 
                 def __repr__(self) -> str:
                     return f'low: {self.low} high: {self.high}'
