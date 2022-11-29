@@ -37,8 +37,8 @@ class Pcf:
             return str(self.df.head())
         
         
-        def get_rows(self, step_name):
-            return self.df.loc[self.df['Step ID'].isin([step_name, step_name+ ' LOW', step_name + ' HIGH'])]
+        def get_spec(self, step_name):
+            return self.df.loc[self.df['Step ID'] == step_name]
 
 
         

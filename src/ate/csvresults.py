@@ -2,17 +2,17 @@
 The Module 'csvresults' provides the needed utilities to handle recorded test results
 from the generated csv file of the ATE test software.
 """
-
+from __future__ import annotations
 __all__ = ("Csv")
 
-from __future__ import annotations
+
 
 import pandas as pd
 from pandas import DataFrame
 import re
 import numpy as np
 
-from pcf import Pcf
+from ate.pcf import Pcf
 
 DATE_COLUMN_NAME = '[TIME] TIMESTAMP / RECORD ID'
 
@@ -83,7 +83,7 @@ class Csv:
             return [test for test in self.tests if "FAIL" in str(test.data)]
 
         def get_failstring(self):
-            failstring:str
+            failstring:str = ""
             for test in self.__get_failed_tests():
 
                 failstring += '|ftestres=0,{},{},{},{},{},{},{}\n'. \
