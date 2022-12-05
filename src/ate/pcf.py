@@ -5,6 +5,15 @@ import re
 
 
 class Pcf:
+    """
+
+    The pcf class defines a process control file, the pcf file contains
+    used information in the process for an specific part number, the
+    most useful information in this file is in the header 
+    "TEST RESULTS SPECIFICATIONS" it contains information of each 
+    performed test, such as nominal, tolerance, data type, units, etc
+    
+    """
     def __init__(self, path) -> None:
         self.path = path
         self.sections = []
@@ -27,6 +36,9 @@ class Pcf:
             self.sections.append(self.Section(name_w_data[0], name_w_data[1]))
     
     class Section():
+        """
+        a section class defines the contents of a header in the pcf file
+        """
         def __init__(self, name, str_data) -> None:
             self.name:str = name
             self.df = pd.read_csv(StringIO(str_data), sep=',')
@@ -37,12 +49,7 @@ class Pcf:
             return str(self.df.head())
         
         
-        def get_spec(self, step_name):
+        def get(self, step_name):
             return self.df.loc[self.df['Step ID'] == step_name]
 
-
-        
-        class Row():
-            def __init__(self) -> None:
-                pass
 
