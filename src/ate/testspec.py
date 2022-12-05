@@ -31,12 +31,18 @@ class TestSpec:
         return [test_spec.name for test_spec in self.test_specs]
 
     @property
-    def low_limits(self):
+    def low_limits(self) -> list[float]:
         return [test_spec.low_limit for test_spec in self.test_specs]
     
     @property
-    def high_limits(self):
+    def high_limits(self) -> list[float]:
         return [test_spec.high_limit for test_spec in self.test_specs]
+    
+    def get_single(self, test_name):
+        for test_spec in self.test_specs:
+            if test_spec.name == test_name:
+                return test_spec
+        raise(KeyError)
     
 
     class SingleTestSpec:
@@ -47,24 +53,44 @@ class TestSpec:
             self.high_limit = None
             self.setup_limits()
         
+        @property
+        def data_type(self):
+            return self.spec["Data Type"].values[0]
+        
+        @property
+        def type(self):
+            return self.spec["Spec Type"].values[0]
+        
+        @property
+        def nominal(self):
+            return self.spec["Nominal"].values[0]
+        
+        @property
+        def units(self):
+            return self.spec["Units"].values[0]
+        
+        @property
+        def tolerance(self):
+            return self.spec["Tolerance"].fillna(0).values[0]
+
+        
 
         def setup_limits(self):
             
-            if self.spec["Spec Type"].values[0] == "NUMERIC OVER":
+            if self.type == "NUMERIC OVER":
                 self.high_limit = float('inf')
-                self.low_limit = self.spec["Nominal"].values[0]
+                self.low_limit = self.nominal
 
-            elif self.spec["Spec Type"].values[0] == "NUMERIC UNDER":
-                self.high_limit = self.spec["Nominal"].values[0]
+            elif self.type == "NUMERIC UNDER":
+                self.high_limit = self.nominal
                 self.low_limit = float('-inf')
 
-            elif self.spec["Spec Type"].values[0] == "% TOLERANCE":
-                nominal = self.spec["Nominal"].values[0]
-                self.high_limit = nominal + nominal * self.spec["Tolerance"].fillna(0).values[0]
-                self.low_limit = nominal - nominal * self.spec["Tolerance"].fillna(0).values[0]
+            elif self.type == "% TOLERANCE":
+                self.high_limit = self.nominal + self.nominal * self.tolerance
+                self.low_limit = self.nominal - self.nominal * self.tolerance
             else:
-                self.high_limit = self.spec["Nominal"].values[0] + self.spec["Tolerance"].fillna(0).values[0]
-                self.low_limit = self.spec["Nominal"].values[0] - self.spec["Tolerance"].fillna(0).values[0]
+                self.high_limit = self.nominal + self.tolerance
+                self.low_limit = self.nominal - self.tolerance
 
 
    
