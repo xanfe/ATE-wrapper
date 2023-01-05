@@ -1,6 +1,7 @@
 from __future__ import annotations
 from io import StringIO
 import pandas as pd
+from pandas import DataFrame
 import re
 
 
@@ -32,8 +33,16 @@ class Pcf:
 
     def _set_sections(self):
         for raw_section in self._get_raw_sections():
-            name_w_data = raw_section.split('\n', 1)
-            self.sections.append(self.Section(name_w_data[0], name_w_data[1]))
+            name, data = tuple(raw_section.split('\n', 1))
+            if "TEST RESULTS SPECIFICATIONS" in name:
+                self.sections.append(self.TestSpecSection(name.rstrip(','), data))
+                return
+            elif "TEST STIMULUS SPECIFICATIONS" in name:
+                pass #unimplemented
+            elif "CONFIGURATION" in name:
+                pass #unimplemented
+            
+        raise Exception("unhandled section name")
     
     class Section():
         """
@@ -49,7 +58,82 @@ class Pcf:
             return str(self.df.head())
         
         
+        
+
+    class TestSpecSection(Section):
+        def __init__(self, name, data) -> None:
+            super().__init__(name, data)
+            self.test_specs = None
+            self.test_names = []
+            self.low_limits = []
+            self.high_limits = []
+            self.setup_spec()
+        
         def get(self, step_name):
             return self.df.loc[self.df['Step ID'] == step_name]
+            
+        def setup_spec(self) -> list[SingleTestSpec]:
+            self.test_specs = [self.SingleTestSpec(self.get(test_name), test_name) for test_name in self.df["Step ID"]]
+            for test_spec in self.test_specs:
+                self.test_names.append(test_spec.name)
+                self.low_limits.append(test_spec.low_limit)
+                self.high_limits.append(test_spec.high_limit)
+            tup = ((test_spec.name, test_spec.low_limit, test_spec.high_limit) for test_spec in self.test_specs)
+            print(tup)
+        
+        
+        def __getitem__(self, test_name):
+            for test_spec in self.test_specs:
+                if test_spec.name == test_name:
+                    return test_spec
+            return None
+        
+
+        class SingleTestSpec:
+            def __init__(self, spec:DataFrame, test_name:str) -> None:
+                self.name = test_name
+                self.spec = spec
+                self.low_limit = None
+                self.high_limit = None
+                self.setup_limits()
+
+            
+            @property
+            def data_type(self):
+                return self.spec["Data Type"].values[0]
+            
+            @property
+            def type(self):
+                return self.spec["Spec Type"].values[0]
+            
+            @property
+            def nominal(self):
+                return self.spec["Nominal"].values[0]
+            
+            @property
+            def units(self):
+                return self.spec["Units"].values[0]
+            
+            @property
+            def tolerance(self):
+                return self.spec["Tolerance"].fillna(0).values[0]
+
+            def setup_limits(self):
+                
+                if self.type == "NUMERIC OVER":
+                    self.high_limit = float('inf')
+                    self.low_limit = self.nominal
+
+                elif self.type == "NUMERIC UNDER":
+                    self.high_limit = self.nominal
+                    self.low_limit = float('-inf')
+
+                elif self.type == "% TOLERANCE":
+                    self.high_limit = self.nominal + self.nominal * self.tolerance
+                    self.low_limit = self.nominal - self.nominal * self.tolerance
+                else:
+                    self.high_limit = self.nominal + self.tolerance
+                    self.low_limit = self.nominal - self.tolerance
+
 
 
