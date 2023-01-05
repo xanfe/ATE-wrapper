@@ -1,1 +1,5 @@
-src/__pycache__
+*__pycache__
+bak.txt
+data/test_spec.csv
+data/GR&Rs
+
