@@ -14,7 +14,6 @@ input_csv_path = config["Paths"]["input_csv"]
 #local modules
 from ate.pcf import Pcf
 from ate.csvresults import Csv
-from ate.testspec import TestSpec
 from kemx.grrgen import GRR, generate_grr_savename
 from gui.popups import MainApplication
 
@@ -22,8 +21,8 @@ from gui.popups import MainApplication
 def main():
 
     pcf = Pcf(pcf_path)
-    comm_conv_test_spec = TestSpec("comm_conv", pcf)
-    my_csv = Csv(input_csv_path, comm_conv_test_spec)
+    #comm_conv_test_spec = TestSpec("comm_conv", pcf)
+    my_csv = Csv(input_csv_path, pcf["[TEST RESULTS SPECIFICATIONS]"])
     # temp_grr = GRR(generate_grr_savename(), comm_conv_test_spec)
 
     # root = Tk()
