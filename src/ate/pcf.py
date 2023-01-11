@@ -8,8 +8,8 @@ import re
 class Pcf:
     """
 
-    The pcf class defines a process control file, the pcf file contains
-    used information in the process for an specific part number, the
+    The pcf class defines a product config file, the pcf file contains
+    used information about the product for an specific part number, the
     most useful information in this file is in the header 
     "TEST RESULTS SPECIFICATIONS" it contains information of each 
     performed test, such as nominal, tolerance, data type, units, etc
@@ -38,9 +38,9 @@ class Pcf:
                 self.sections.append(self.TestSpecSection(name.rstrip(','), data))
                 return
             elif "TEST STIMULUS SPECIFICATIONS" in name:
-                pass #unimplemented
+                pass #TODO
             elif "CONFIGURATION" in name:
-                pass #unimplemented
+                pass #TODO
             
         raise Exception("unhandled section name")
     
