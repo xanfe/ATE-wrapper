@@ -51,7 +51,7 @@ class Record:
     def __get_failed_tests(self) -> list[Test]:
         pass
 
-    def get_failstring(self):
+    def build_failstring(self):
         pass
     
     
