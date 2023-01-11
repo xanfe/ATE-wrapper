@@ -1,3 +1,3 @@
 """
-this package describes ATE software python utilities
+this package describes ATE (Alpha Manufacturer Test) software python utilities
 """
