@@ -49,7 +49,7 @@ class Pcf:
         self._set_sections()
 
     def __getitem__(self, header_name: str) -> Section:
-        """Retrieve a Section object by a given header name
+        """Retrieves a Section object by a given header name
 
         Parameters
         ----------
