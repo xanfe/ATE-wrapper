@@ -1,0 +1,4 @@
+pandas==1.5.2
+PyAutoGUI==0.9.53
+requests==2.28.2
+pythonnet==3.0.1
