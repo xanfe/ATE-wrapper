@@ -5,6 +5,7 @@ from tkinter import Tk
 import ast
 import clr
 
+
 import configparser
 config = configparser.ConfigParser()
 config.read('settings\config.ini')
@@ -15,6 +16,8 @@ config.read('settings\config.ini')
 local_pnumber = config["Process"]["part_number"]
 station_name = config["Process"]["station_name"]
 p_oder = config["AteConfig"]["p_order"]
+
+debug_serial = config["Process"]["debug_serial"]
 
 
 #Traceability options
@@ -45,107 +48,114 @@ from ate.pcf import Pcf
 from ate.tdr import TdrsCsv
 from ate.tools import *
 from gui.popups import MainApplication
-from automation.programhandler import ProgramHandler
+from automation.apphandler import AppHandler
 #from kemx.grrgen import GRR, generate_grr_savename
 from gui.popups import MainApplication
 from kemx.webservices import WebServices2
+from utils.math import sum_tuples
 
-START_TEST_BTN_POS = ast.literal_eval(config["ScreenCords"]["start_test_btn"])
-NEW_ORDER_BTN_POS = ast.literal_eval(config["ScreenCords"]["new_order_btn"])
-BROWSE_FW_BTN_POS = ast.literal_eval(config["ScreenCords"]["browse_fw_btn"]) # position for brose firmware path button
+# START_BTN_POS = ast.literal_eval(config["AbsoluteScreenCords"]["start_test_btn"])
+# NEW_ORDER_BTN_POS = ast.literal_eval(config["AbsoluteScreenCords"]["new_order_btn"])
+# BROWSE_BTN_POS = ast.literal_eval(config["AbsoluteScreenCords"]["browse_fw_btn"]) # position for brose firmware path button
+
+START_BTN_POS = ast.literal_eval(config["RelativeScreenCords"]["start_test_btn"])
+NEW_ORDER_BTN_POS = ast.literal_eval(config["RelativeScreenCords"]["new_order_btn"])
+BROWSE_BTN_POS = ast.literal_eval(config["RelativeScreenCords"]["browse_fw_btn"]) # position for brose firmware path button
 
 
-"""
-numero de parte: 704-00306-20-001 F
-serial: 2208F0110020
-exe: 087-00015-02-001
-firmware path: C:\AlphaManufacturingTest\ATE_Software\087-00015-20\-000\Firmware Files\ccm_v0.00.0M.s19
-serial with flow: 2250F7300009
-
-"""
-def setup_ate_sequence(handler : ProgramHandler):
-    handler.click(NEW_ORDER_BTN_POS)
-    handler.type_and_return(p_oder)
+def setup_ate_sequence(window : AppHandler.Window):
+    print("clicking new order btn pos btn")
+    window.click(NEW_ORDER_BTN_POS)
+    window.type_and_return(p_oder)
     time.sleep(0.5)
-    handler.type_and_return(local_pnumber)
+    window.type_and_return(local_pnumber)
     time.sleep(1.5)
-    handler.click(BROWSE_FW_BTN_POS)
+    window.click(BROWSE_BTN_POS)
     time.sleep(0.8)
-    handler.type_and_return(firmware_path)
+    window.type_and_return(firmware_path)
     time.sleep(0.2)
+
 
 
 def main():
 
-    root = Tk()
-    root.withdraw()
-    gui_app = MainApplication(root)
+    try:
 
-    ate_handler = ProgramHandler("087-00015-02-001", ate_wd)
+        root = Tk()
+        root.withdraw()
+        gui_app = MainApplication(root)
+        ate_handler = AppHandler("087-00015-02-001", ate_wd)
+        
+        ws_connenction = Connector()
 
-    ws_connenction = Connector()
+        tdrs_csv_path = build_tdrs_csv_path()
 
-    tdrs_csv_path = build_tdrs_csv_path()
+        pcf = Pcf(pcf_path)
 
-    pcf = Pcf(pcf_path)
-
-    tdrs_csv = TdrsCsv(tdrs_csv_path, pcf["[TEST RESULTS SPECIFICATIONS]"])
-
-
-
-    ate_handler.open()
-    time.sleep(27) #TODO: replace with virtual visual timer for the operator to know he must wait for the test sequence to be ready
+        tdrs_csv = TdrsCsv(tdrs_csv_path, pcf["[TEST RESULTS SPECIFICATIONS]"])
 
 
 
-    #TODO:when part number fixed in test sequence, uncomment and correctly implement serial ask
-    #temporal comment,the serial number should ideally  be asked here to retrieve part_number from web server
-    #but at this point 1/6/2023, this doesnt match the secuence so ini part number will be used
-    # ask_serial_wd = gui_app.ask_serial()
-    # gui_app.wait_window_destroy(ask_serial_wd)
+        ate_handler.open()
+        time.sleep(27) #TODO: replace with virtual visual timer for the operator to know he must wait for the test sequence to be ready
+        tester_window:AppHandler.Window = ate_handler.get_window("CONFIGURE ORDER & RUN TESTS")
 
 
-    ask_serial_wd = gui_app.ask_serial()
-    gui_app.wait_window_destroy(ask_serial_wd)
-
-    setup_ate_sequence(ate_handler)
+        # raise Exception("test error")
 
 
-    total_uuts = 0 #counts each unit that has been tested
+
+        #TODO:when part number fixed in test sequence, uncomment and correctly implement serial ask
+        #temporal comment,the serial number should ideally  be asked here to retrieve part_number from web server
+        #but at this point 1/6/2023, this doesnt match the secuence so ini part number will be used
+        # ask_serial_wd = gui_app.ask_serial()
+        # gui_app.wait_window_destroy(ask_serial_wd)
 
 
-    def valid_serial_number(serial):
+        ask_serial_wd = gui_app.ask_serial()
+        gui_app.wait_window_destroy(ask_serial_wd)
 
-        serial_number_patterns = get_serial_number_patterns()
-        serial_pattern_matches = get_pattern_matches(serial_number_patterns, serial)
+        setup_ate_sequence(tester_window)
 
-        if not all(serial_pattern_matches):
-            msg_window = gui_app.message(f"FORMATO DE SERIAL INVALIDO:\n patrones: {serial_number_patterns}", "orange")
-            gui_app.wait_window_destroy(msg_window)
-            return False
-        else:
-                if validate_partnumber_enabled == 'yes':
 
-                    pnum_ref = ""
-                    webservices_pnumber, pnum_ref = ws_connenction.CIMP_PartNumberRef(serial,1, pnum_ref)
+        total_uuts = 0 #counts each unit that has been tested
 
-                    if local_pnumber.replace(' ', '+') != webservices_pnumber:
-                        msg_window = gui_app.message(f"NUMERO DE PARTE INESPERADO: \n    local (.ini): {local_pnumber} \n web server: {webservices_pnumber}", "orange")
-                        gui_app.wait_window_destroy(msg_window)
 
-                        #----------------------------------------------------------------------
-                        #aqui puede ir mensaje al operador para retirar la pieza del fixture
-                        msg_window = gui_app.message("RETIRE LA PIEZA Y\n TOME UNA NUEVA", "blue")
-                        gui_app.wait_window_destroy(msg_window)
-                        #----------------------------------------------------------------------
-                        return False
-                        
+        def valid_serial_number(serial):
+
+            if serial == debug_serial:
+                return True
+
+            serial_number_patterns = get_serial_number_patterns()
+            serial_pattern_matches = get_pattern_matches(serial_number_patterns, serial)
+
+            if not all(serial_pattern_matches):
+                msg_window = gui_app.message(f"FORMATO DE SERIAL INVALIDO:\n patrones: {serial_number_patterns}", "orange")
+                gui_app.wait_window_destroy(msg_window)
+                return False
+            else:
+                    if validate_partnumber_enabled == 'yes':
+
+                        pnum_ref = ""
+                        webservices_pnumber, pnum_ref = ws_connenction.CIMP_PartNumberRef(serial,1, pnum_ref)
+
+                        if local_pnumber.replace(' ', '+') != webservices_pnumber:
+                            msg_window = gui_app.message(f"NUMERO DE PARTE INESPERADO: \n    local (.ini): {local_pnumber} \n web server: {webservices_pnumber}", "orange")
+                            gui_app.wait_window_destroy(msg_window)
+
+                            #----------------------------------------------------------------------
+                            #aqui puede ir mensaje al operador para retirar la pieza del fixture
+                            msg_window = gui_app.message("RETIRE LA PIEZA Y\n TOME UNA NUEVA", "blue")
+                            gui_app.wait_window_destroy(msg_window)
+                            #----------------------------------------------------------------------
+                            return False
+                            
+                        else:
+                            return True
                     else:
                         return True
-                else:
-                    return True
 
-    try:
+        
         while True:
 
 
@@ -158,19 +168,25 @@ def main():
                 ask_serial_wd = gui_app.ask_serial()
                 gui_app.wait_window_destroy(ask_serial_wd)
 
-            ate_handler.click(START_TEST_BTN_POS)
+            print("clicking start btn")
+            tester_window.click(START_BTN_POS)
             time.sleep(0.3)
-            ate_handler.type_and_return(gui_app.serial)
+            tester_window.type_and_return(gui_app.serial)
 
 
             if not valid_serial_number(gui_app.serial):
+                total_uuts += 1
                 continue
             
                     
 
             #se hace el backcheck de la pieza
-            if backcheck_serial_enabled == 'yes':
-                resp = ws_connenction.BackCheck_Serial(gui_app.serial, station_name)
+
+            if gui_app.serial != debug_serial:
+                if backcheck_serial_enabled == 'yes':
+                    resp = ws_connenction.BackCheck_Serial(gui_app.serial, station_name)
+                else:
+                    resp = f"1|OK: Unidad correcta: SN: {gui_app.serial}"
             else:
                 resp = f"1|OK: Unidad correcta: SN: {gui_app.serial}"
             
@@ -190,6 +206,7 @@ def main():
 
                 #la palabra reservada continue, descarta el ciclo actual del loop, y continua con el siguiente
                 #ciclo desde el principio
+                total_uuts +=1
                 continue
 
             msg_window = gui_app.message("INSERTE LA PIEZA Y \nBAJE EN EL FIXTURE", "blue")
@@ -218,6 +235,7 @@ def main():
             if not last_record.serial == gui_app.serial:
                 err_msg_window = gui_app.message(f"SERIAL DE ARCHIVO CSV NO \n CORRESPONDE AL ESCANEADO: csv: {last_record.serial} \n escaneado: {gui_app.serial}")
                 gui_app.wait_window_destroy(err_msg_window)
+                total_uuts =+1
                 continue
                 
 
@@ -270,7 +288,7 @@ def main():
                 reply = "Ok"
             
 
-            if not "Ok" in reply:
+            if not "ok" in reply.lower():
 
                 #TODO: agregar reintentos si falla al subir a traceabilidad
                 msg_window = gui_app.message("FALLA AL SUBIR A TRACEABILIDAD: \n"+ reply, "orange")
@@ -297,8 +315,10 @@ def main():
     
     finally:
         #cleanup
+        
         if not ate_handler.busy:
             ate_handler.close()
+        
 
     root.destroy()
     root.mainloop()

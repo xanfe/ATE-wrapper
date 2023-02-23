@@ -6,16 +6,20 @@ import re
 
 
 class Pcf:
-    """
-
-    The pcf class defines a product config file, the pcf file contains
+    """The pcf class defines a product config file, the pcf file contains
     used information about the product for an specific part number, the
     most useful information in this file is in the header 
     "TEST RESULTS SPECIFICATIONS" it contains information of each 
     performed test, such as nominal, tolerance, data type, units, etc
-    
     """
-    def __init__(self, path) -> None:
+    def __init__(self, path:str) -> None:
+        """initialices Pcf object
+
+        Parameters
+        ----------
+        path : str
+            reference path to locate pfc file
+        """
         self.path = path
         self.sections = []
         self._set_sections()

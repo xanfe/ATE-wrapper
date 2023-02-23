@@ -9,20 +9,29 @@ ate_v = config["AteConfig"]["version"]
 p_order = config["AteConfig"]["p_order"]
 tdrs_root_path = config["Paths"]["tdrs_root"]
 
+
+software_name = config["AteConfig"]["software_name"]
+
 #patterns
 serial_num_patterns = config["Patterns"]["serial_number"]
-config.read(ate_sys_cfg_path)
+
+# -----------------Removed------------------- 
+# config.read(ate_sys_cfg_path)
 
 #ate_system_cfg
-ate_station_id = config["ATE SYSTEM SETTINGS"]["STATION ID"]
-ate_system_pnumber = config["ATE SYSTEM SETTINGS"]["SYSTEM PART NUMBER"]
+# ate_station_id = config["ATE SYSTEM SETTINGS"]["STATION ID"]
+# ate_system_pnumber = config["ATE SYSTEM SETTINGS"]["SYSTEM PART NUMBER"]
+
+# ------------------------------------------ 
+
+station_id = config["AteConfig"]["station_id"]
 
 
 
 #TDR stands for Test Data Record
 #example :TDR_087-00015-02_[KEMX_REX_MFG_1]_[V_0002]_[PO_VERIFY].CSV
 def build_tdrs_csv_path():
-    path = rf"{tdrs_root_path}\TDR_{ate_system_pnumber}_[{ate_station_id}]_[V_{ate_v}]_[PO_{p_order}].CSV"
+    path = rf"{tdrs_root_path}\TDR_{software_name}_[{station_id}]_[V_{ate_v}]_[PO_{p_order}].CSV"
     return path
 
 
